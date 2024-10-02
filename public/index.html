@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>sclerenchyma</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div id="banner">
+        Put page in fullscreen for the best experience. Also, do not share personal info.
+        <button id="close-banner">X</button>
+    </div>
+    <div id="sidebar">
+        <h2>Chat Rooms</h2>
+        <div id="rooms">
+            <div class="room" data-room="General">General</div>
+            <div class="room" data-room="Random">Random</div>
+            <div class="room" data-room="Tech">Tech</div>
+            <div class="room" data-room="Test">Test</div>
+        </div>
+    </div>
+    <div id="chat">
+        <div id="messages"></div>
+        <form id="form" action="">
+            <input id="input" autocomplete="off" placeholder="Type a message..." />
+            <button id="send">Send</button>
+        </form>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // Redirect to login if username is missing
+        const username = localStorage.getItem("chatUsername");
+        if (!username) {
+            window.location.href = "/login.html";
+        }
+
+        const socket = io();
+        let currentRoom = "General";
+
+        document.getElementById("form").addEventListener("submit", function (e) {
+            e.preventDefault();
+            const input = document.getElementById("input");
+            if (input.value) {
+                socket.emit("chat message", {
+                    room: currentRoom,
+                    name: username,
+                    text: input.value,
+                });
+                input.value = "";
+            }
+        });
+
+        socket.on("chat message", function (msg) {
+            const item = document.createElement("div");
+            item.textContent = `${msg.name}: ${msg.text}`;
+            document.getElementById("messages").appendChild(item);
+            messages.scrollTop = messages.scrollHeight;
+        });
+
+        socket.on("message history", function (history) {
+            document.getElementById("messages").innerHTML = "";
+            history.forEach((msg) => {
+                const item = document.createElement("div");
+                item.textContent = `${msg.name}: ${msg.text}`;
+                document.getElementById("messages").appendChild(item);
+            });
+        });
+
+        // Room switching
+        document.querySelectorAll(".room").forEach((room) => {
+            room.addEventListener("click", () => {
+                currentRoom = room.getAttribute("data-room");
+                socket.emit("switch room", currentRoom);
+            });
+        });
+
+        socket.emit("join room", currentRoom);
+
+        // Check localStorage for banner visibility
+        if (localStorage.getItem('bannerClosed') === 'true') {
+            document.getElementById("banner").style.display = "none";
+        }
+
+        document.getElementById("close-banner").addEventListener("click", () => {
+            document.getElementById("banner").style.display = "none";
+            // Save banner closed state in localStorage
+            localStorage.setItem('bannerClosed', 'true');
+        });
+    </script>
+</body>
+</html>
