@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - sclerenchyma</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="login-container">
+        <h1>Welcome to sclerenchyma</h1>
+        <form id="login-form">
+            <input type="text" id="username-input" placeholder="Enter your username" required />
+            <button type="submit">Enter Chat</button>
+        </form>
+    </div>
+
+    <script>
+        const loginForm = document.getElementById('login-form');
+        const usernameInput = document.getElementById('username-input');
+
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const username = usernameInput.value.trim();
+
+            if (username) {
+                // Store the username in localStorage
+                localStorage.setItem('chatUsername', username);
+                // Redirect to the chat page
+                window.location.href = '/';
+            }
+        });
+    </script>
+</body>
+</html>
