@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="icon" type="image/x-icon" href="https://cdn.glitch.global/779404dd-b4da-46f4-8ea3-6e5c98060c91/favicon%20(7).ico?v=1727968918289">
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>sclerenchyma</title>
@@ -27,13 +28,53 @@
             <button id="send">Send</button>
         </form>
     </div>
+<div>
+    <input type="password" id="admin-code" placeholder="Enter Admin Code">
+    <button id="admin-button" onclick="submitAdminCode()">Submit</button>
+</div>
 
-    <script src="/socket.io/socket.io.js"></script>
+<script>
+    // JavaScript to handle the admin code submission
+    function submitAdminCode() {
+        const adminCode = document.getElementById('admin-code').value;
+
+        console.log('Admin code submitted:', adminCode);  // Log the admin code submission
+
+        fetch('/verify-admin', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ code: adminCode }),
+        })
+        .then(response => {
+            console.log('Response status:', response.status);  // Log response status
+            return response.json();
+        })
+        .then(data => {
+            console.log('Server response data:', data);  // Log server response
+
+            if (data.success) {
+                alert('Admin access granted!');
+            } else {
+                alert('Invalid admin code!');
+            }
+        })
+        .catch((error) => {
+            console.error('Error:', error);  // Log any errors
+        });
+    }
+</script>
+
+
+
+   
+  <script src="/socket.io/socket.io.js"></script>
     <script>
         // Redirect to login if username is missing
         const username = localStorage.getItem("chatUsername");
         if (!username) {
-            window.location.href = "https://chompypotato.github.io/sclerenchyma/login.html";
+            window.location.href = "/login.html";
         }
 
         const socket = io();
