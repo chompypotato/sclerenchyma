@@ -1,134 +1,175 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <link rel="icon" type="image/x-icon" href="https://cdn.glitch.global/779404dd-b4da-46f4-8ea3-6e5c98060c91/favicon%20(7).ico?v=1727968918289">
+  <head>
+    <link
+      rel="icon"
+      type="image/x-icon"
+      href="https://cdn.glitch.global/779404dd-b4da-46f4-8ea3-6e5c98060c91/favicon%20(7).ico?v=1727968918289"
+    />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>sclerenchyma</title>
     <link rel="stylesheet" href="style.css" />
-</head>
-<body>
+  </head>
+  <body>
     <div id="banner">
-        Put page in fullscreen for the best experience. Also, do not share personal info.
-        <button id="close-banner">X</button>
+      Put page in fullscreen for the best experience. Also, do not share
+      personal info.
+      <button id="close-banner">X</button>
     </div>
+
     <div id="sidebar">
-        <h2>Chat Rooms</h2>
-        <div id="rooms">
-            <div class="room" data-room="General">General</div>
-            <div class="room" data-room="Random">Random</div>
-            <div class="room" data-room="Tech">Tech</div>
-            <div class="room" data-room="Test">Test</div>
-        </div>
+      <h2>Chat Rooms</h2>
+      <div id="rooms">
+        <div class="room" data-room="General">General</div>
+        <div class="room" data-room="Random">Random</div>
+        <div class="room" data-room="Tech">Tech</div>
+        <div class="room" data-room="Suggestions">Suggestions</div>
+        <div class="room" data-room="Games">Games</div>
+      </div>
     </div>
+
     <div id="chat">
-        <div id="messages"></div>
-        <form id="form" action="">
-            <input id="input" autocomplete="off" placeholder="Type a message..." />
-            <button id="send">Send</button>
-        </form>
+      <div id="messages"></div>
+      <form id="form" action="">
+        <input id="input" autocomplete="off" placeholder="Type a message..." />
+        <button id="send">Send</button>
+      </form>
     </div>
-<div>
-    <input type="password" id="admin-code" placeholder="Enter Admin Code">
-    <button id="admin-button" onclick="submitAdminCode()">Submit</button>
-</div>
+    <button
+      id="logoutbutton"
+      onclick="localStorage.clear(); alert('Logged out!'); location.reload();"
+    >
+      Log off
+    </button>
+    <div>
+      <input type="password" id="admin-code" placeholder="Enter Admin Code" />
+      <button id="admin-button" onclick="submitAdminCode()">Submit</button>
+    </div>
 
-<script>
-    // JavaScript to handle the admin code submission
-    function submitAdminCode() {
-        const adminCode = document.getElementById('admin-code').value;
-
-        console.log('Admin code submitted:', adminCode);  // Log the admin code submission
-
-        fetch('/verify-admin', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ code: adminCode }),
-        })
-        .then(response => {
-            console.log('Response status:', response.status);  // Log response status
-            return response.json();
-        })
-        .then(data => {
-            console.log('Server response data:', data);  // Log server response
-
-            if (data.success) {
-                alert('Admin access granted!');
-            } else {
-                alert('Invalid admin code!');
-            }
-        })
-        .catch((error) => {
-            console.error('Error:', error);  // Log any errors
-        });
-    }
-</script>
-
-
-
-   
-  <script src="/socket.io/socket.io.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
     <script>
-        // Redirect to login if username is missing
-        const username = localStorage.getItem("chatUsername");
-        if (!username) {
-            window.location.href = "/login.html";
+      // Redirect to login if username is missing
+      const username = localStorage.getItem("chatUsername");
+      if (!username) {
+        window.location.href = "/login.html"; // Redirect to login page
+      }
+
+      const socket = io();
+      let currentRoom = "General"; // Default room
+
+      // Function to switch room and highlight the selected room
+      function switchRoom(roomElement) {
+        const previousRoom = document.querySelector(".active-room");
+        if (previousRoom) {
+          previousRoom.classList.remove("active-room"); // Remove the active class from the previous room
         }
 
-        const socket = io();
-        let currentRoom = "General";
+        roomElement.classList.add("active-room"); // Add active class to the current room
+        currentRoom = roomElement.getAttribute("data-room");
 
-        document.getElementById("form").addEventListener("submit", function (e) {
-            e.preventDefault();
-            const input = document.getElementById("input");
-            if (input.value) {
-                socket.emit("chat message", {
-                    room: currentRoom,
-                    name: username,
-                    text: input.value,
-                });
-                input.value = "";
+        // Emit room switch event
+        socket.emit("switch room", currentRoom);
+      }
+
+      // Attach click event to each room
+      document.querySelectorAll(".room").forEach((roomElement) => {
+        roomElement.addEventListener("click", () => switchRoom(roomElement));
+      });
+
+      // Add active-room class to General on page load
+      document
+        .querySelector('.room[data-room="General"]')
+        .classList.add("active-room");
+
+      socket.emit("join room", currentRoom);
+
+      document.getElementById("form").addEventListener("submit", function (e) {
+        e.preventDefault();
+        const input = document.getElementById("input");
+        if (input.value.startsWith("/")) {
+          // Send admin command
+          socket.emit("chat message", {
+            room: currentRoom,
+            name: username,
+            text: input.value,
+          });
+        } else {
+          // Send normal chat message
+          socket.emit("chat message", {
+            room: currentRoom,
+            name: username,
+            text: input.value,
+          });
+        }
+        input.value = "";
+      });
+
+      socket.on("chat message", function (msg) {
+        const item = document.createElement("div");
+        item.textContent = `${msg.name}: ${msg.text}`;
+        document.getElementById("messages").appendChild(item);
+        messages.scrollTop = messages.scrollHeight;
+      });
+
+      socket.on("message history", function (history) {
+        document.getElementById("messages").innerHTML = "";
+        history.forEach((msg) => {
+          const item = document.createElement("div");
+          item.textContent = `${msg.name}: ${msg.text}`;
+          document.getElementById("messages").appendChild(item);
+        });
+      });
+
+      // Listen for clearChat event
+      socket.on("clearChat", () => {
+        document.getElementById("messages").innerHTML = ""; // Clear chat window
+      });
+
+      // Room switching
+      document.querySelectorAll(".room").forEach((room) => {
+        room.addEventListener("click", () => {
+          currentRoom = room.getAttribute("data-room");
+          socket.emit("switch room", currentRoom);
+        });
+      });
+
+      socket.emit("join room", currentRoom);
+
+      // Admin Code Submission
+      function submitAdminCode() {
+        const adminCode = document.getElementById("admin-code").value;
+
+        fetch("/verify-admin", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ code: adminCode, username }),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.success) {
+              alert("Admin access granted!");
+            } else {
+              alert("Invalid admin code!");
             }
-        });
+          })
+          .catch((error) => {
+            console.error("Error:", error);
+          });
+      }
 
-        socket.on("chat message", function (msg) {
-            const item = document.createElement("div");
-            item.textContent = `${msg.name}: ${msg.text}`;
-            document.getElementById("messages").appendChild(item);
-            messages.scrollTop = messages.scrollHeight;
-        });
+      // Close banner on click
+      document.getElementById("close-banner").addEventListener("click", () => {
+        document.getElementById("banner").style.display = "none";
+        localStorage.setItem("bannerClosed", "true");
+      });
 
-        socket.on("message history", function (history) {
-            document.getElementById("messages").innerHTML = "";
-            history.forEach((msg) => {
-                const item = document.createElement("div");
-                item.textContent = `${msg.name}: ${msg.text}`;
-                document.getElementById("messages").appendChild(item);
-            });
-        });
-
-        // Room switching
-        document.querySelectorAll(".room").forEach((room) => {
-            room.addEventListener("click", () => {
-                currentRoom = room.getAttribute("data-room");
-                socket.emit("switch room", currentRoom);
-            });
-        });
-
-        socket.emit("join room", currentRoom);
-
-        // Check localStorage for banner visibility
-        if (localStorage.getItem('bannerClosed') === 'true') {
-            document.getElementById("banner").style.display = "none";
-        }
-
-        document.getElementById("close-banner").addEventListener("click", () => {
-            document.getElementById("banner").style.display = "none";
-            // Save banner closed state in localStorage
-            localStorage.setItem('bannerClosed', 'true');
-        });
+      // Check if banner was closed in a previous session
+      if (localStorage.getItem("bannerClosed") === "true") {
+        document.getElementById("banner").style.display = "none";
+      }
     </script>
-</body>
+  </body>
 </html>
