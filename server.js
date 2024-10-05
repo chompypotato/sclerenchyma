@@ -11,15 +11,19 @@ const io = socketIO(server);
 
 // Middleware to serve static files and parse JSON request bodies
 app.use(express.static('public'));
-app.use(express.json());  // This is crucial to handle JSON data in POST requests
+app.use(express.json());  // To handle JSON data in POST requests
 
 // Chat room data
 const chatRooms = {
     'General': [],
     'Random': [],
     'Tech': [],
-    'Test': []
+    'Suggestions': [],
+  'Games':[]
 };
+
+// Admin users (admin privilege management)
+const adminUsers = new Set();  // Dynamically add users who verify as admins
 
 // Socket.IO connections and message handling
 io.on('connection', (socket) => {
@@ -40,17 +44,22 @@ io.on('connection', (socket) => {
     // Handle incoming chat messages
     socket.on('chat message', (msg) => {
         if (!msg.room || !msg.name || !msg.text) return;
-        
-        // Add message to room's history
-        chatRooms[msg.room].push({ name: msg.name, text: msg.text });
-        
-        // Limit room history to the last 25 messages
-        if (chatRooms[msg.room].length > 25) {
-            chatRooms[msg.room].shift();
+
+        // Handle admin commands (starts with '/')
+        if (msg.text.startsWith('/')) {
+            handleAdminCommand(msg, socket);
+        } else {
+            // Add message to room's history
+            chatRooms[msg.room].push({ name: msg.name, text: msg.text });
+
+            // Limit room history to the last 25 messages
+            if (chatRooms[msg.room].length > 25) {
+                chatRooms[msg.room].shift();
+            }
+
+            // Broadcast message to room
+            io.to(msg.room).emit('chat message', { name: msg.name, text: msg.text });
         }
-        
-        // Broadcast message to room
-        io.to(msg.room).emit('chat message', { name: msg.name, text: msg.text });
     });
 
     // Handle room joining
@@ -62,15 +71,39 @@ io.on('connection', (socket) => {
     });
 });
 
+// Function to handle admin commands
+function handleAdminCommand(msg, socket) {
+    const { text, name, room } = msg;
+
+    if (!adminUsers.has(name)) {
+        socket.emit('chat message', { name: 'system', text: 'Unauthorized admin command' });
+        return;
+    }
+
+    const [command] = text.split(' ');  // Extract the command
+    switch (command) {
+        case '/clear':
+            chatRooms[room] = [];  // Clear chat history for the room
+            io.to(room).emit('clearChat');  // Emit clearChat event to the room
+            break;
+
+        // Add more commands here if needed (e.g., /kick, /ban)
+        default:
+            socket.emit('chat message', { name: 'system', text: `Unknown command: ${command}` });
+            break;
+    }
+}
+
 // Admin code verification route
 app.post('/verify-admin', (req, res) => {
-    const enteredCode = req.body.code;  // Read the code from the request body
+    const enteredCode = req.body.code;
     const adminCode = process.env.ADMIN_CODE;  // Load admin code from .env
 
     if (enteredCode === adminCode) {
-        res.json({ success: true });  // Respond with success if codes match
+        adminUsers.add(req.body.username);  // Add user to admin set
+        res.json({ success: true });
     } else {
-        res.json({ success: false });  // Respond with failure if codes do not match
+        res.json({ success: false });
     }
 });
 
