@@ -2,9 +2,9 @@
 <html lang="en">
   <head>
     <link
-      rel="icon"
-      type="image/x-icon"
-      href="https://cdn.glitch.global/779404dd-b4da-46f4-8ea3-6e5c98060c91/favicon%20(7).ico?v=1727968918289"
+        rel="icon"
+        type="image/x-icon"
+        href="https://cdn.glitch.global/779404dd-b4da-46f4-8ea3-6e5c98060c91/favicon%20(7).ico?v=1727968918289"
     />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -32,19 +32,14 @@
       <div id="messages"></div>
       <form id="form" action="">
         <input id="input" autocomplete="off" placeholder="Type a message..." />
-        
         <!-- Hidden file input and styled label -->
         <input type="file" id="fileInput" style="display: none;" />
         <label for="fileInput" id="file-upload-label">Upload File</label>
-        
         <button type="submit" id="send">Send</button>
       </form>
     </div>
     
-    <button
-      id="logoutbutton"
-      onclick="localStorage.clear(); alert('Logged out!'); location.reload();"
-    >
+    <button id="logoutbutton" onclick="localStorage.clear(); alert('Logged out!'); location.reload();">
       Log off
     </button>
     
@@ -57,47 +52,40 @@
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
-      // Redirect to login if username is missing
+      // Ensure user has a username
       const username = localStorage.getItem("chatUsername");
       if (!username) {
-        window.location.href = "/login.html"; // Redirect to login page
+        window.location.href = "/login.html"; // Redirect to login page if no username
       }
 
       const socket = io();
       let currentRoom = "General"; // Default room
 
-      // Function to switch room and highlight the selected room
+      // Room switching logic
       function switchRoom(roomElement) {
         const previousRoom = document.querySelector(".active-room");
         if (previousRoom) {
-          previousRoom.classList.remove("active-room"); // Remove the active class from the previous room
+          previousRoom.classList.remove("active-room");
         }
 
-        roomElement.classList.add("active-room"); // Add active class to the current room
+        roomElement.classList.add("active-room");
         currentRoom = roomElement.getAttribute("data-room");
-
-        // Emit room switch event
         socket.emit("switch room", currentRoom);
       }
 
-      // Attach click event to each room
-      document.querySelectorAll(".room").forEach((roomElement) => {
+      document.querySelectorAll(".room").forEach(roomElement => {
         roomElement.addEventListener("click", () => switchRoom(roomElement));
       });
 
-      // Add active-room class to General on page load
-      document
-        .querySelector('.room[data-room="General"]')
-        .classList.add("active-room");
-
-      socket.emit("join room", currentRoom);
-
+      // Handle form submission and file upload
       document.getElementById("form").addEventListener("submit", function (e) {
         e.preventDefault();
         const input = document.getElementById("input");
-        
+        const message = input.value.trim(); // Trim whitespace
+
         // Handle file input
         const fileInput = document.getElementById("fileInput");
+
         if (fileInput.files.length > 0) {
           const file = fileInput.files[0];
           const formData = new FormData();
@@ -105,33 +93,41 @@
           formData.append("room", currentRoom);
           formData.append("username", username);
 
-          // Send file to the server
           fetch("/upload", {
             method: "POST",
-            body: formData,
+            body: formData
           })
-            .then((response) => response.json())
-            .then((data) => {
+            .then(response => response.json())
+            .then(data => {
               if (data.success) {
                 console.log("File uploaded successfully");
               } else {
                 console.error("File upload failed");
               }
             })
-            .catch((error) => console.error("Error:", error));
-          
-          fileInput.value = ""; // Clear file input after sending
+            .catch(error => console.error("Error:", error));
+
+          fileInput.value = ""; // Clear the file input
+        } else if (message.startsWith("/")) {
+          // Handle admin command if the message starts with "/"
+          socket.emit("admin command", {
+            room: currentRoom,
+            name: username,
+            text: message
+          });
         } else {
           // Send normal chat message
           socket.emit("chat message", {
             room: currentRoom,
             name: username,
-            text: input.value,
+            text: message
           });
         }
-        input.value = ""; // Clear input field
+
+        input.value = ""; // Clear the message input
       });
 
+      // Listening for chat messages
       socket.on("chat message", function (msg) {
         const item = document.createElement("div");
         item.textContent = `${msg.name}: ${msg.text}`;
@@ -139,6 +135,7 @@
         messages.scrollTop = messages.scrollHeight;
       });
 
+      // Listening for file uploads
       socket.on("file upload", function (data) {
         const item = document.createElement("div");
         item.innerHTML = `${data.name} sent a file: <a href="${data.filePath}" target="_blank">${data.fileName}</a>`;
@@ -146,16 +143,17 @@
         messages.scrollTop = messages.scrollHeight;
       });
 
+      // Listening for message history
       socket.on("message history", function (history) {
-        document.getElementById("messages").innerHTML = "";
-        history.forEach((msg) => {
+        document.getElementById("messages").innerHTML = ""; // Clear old messages
+        history.forEach(msg => {
           const item = document.createElement("div");
           item.textContent = `${msg.name}: ${msg.text}`;
           document.getElementById("messages").appendChild(item);
         });
       });
 
-      // Listen for clearChat event
+      // Listening for clearChat event to clear the chat window
       socket.on("clearChat", () => {
         document.getElementById("messages").innerHTML = ""; // Clear chat window
       });
@@ -163,25 +161,20 @@
       // Admin Code Submission
       function submitAdminCode() {
         const adminCode = document.getElementById("admin-code").value;
-
         fetch("/verify-admin", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ code: adminCode, username }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: adminCode, username })
         })
-          .then((response) => response.json())
-          .then((data) => {
-            if (data.success) {
-              alert("Admin access granted!");
-            } else {
-              alert("Invalid admin code!");
-            }
-          })
-          .catch((error) => {
-            console.error("Error:", error);
-          });
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            alert("Admin access granted!");
+          } else {
+            alert("Invalid admin code!");
+          }
+        })
+        .catch(error => console.error("Error:", error));
       }
 
       // Close banner on click
