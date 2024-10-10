@@ -13,8 +13,7 @@
   </head>
   <body>
     <div id="banner">
-      Put page in fullscreen for the best experience. Also, do not share
-      personal info.
+      We have changed our terms of service. Please log out to see them.
       <button id="close-banner">X</button>
     </div>
 
@@ -33,19 +32,28 @@
       <div id="messages"></div>
       <form id="form" action="">
         <input id="input" autocomplete="off" placeholder="Type a message..." />
-        <button id="send">Send</button>
+        
+        <!-- Hidden file input and styled label -->
+        <input type="file" id="fileInput" style="display: none;" />
+        <label for="fileInput" id="file-upload-label">Upload File</label>
+        
+        <button type="submit" id="send">Send</button>
       </form>
     </div>
+    
     <button
       id="logoutbutton"
       onclick="localStorage.clear(); alert('Logged out!'); location.reload();"
     >
       Log off
     </button>
+    
     <div>
       <input type="password" id="admin-code" placeholder="Enter Admin Code" />
       <button id="admin-button" onclick="submitAdminCode()">Submit</button>
     </div>
+    
+    <button id="theme-toggle" onclick="toggleTheme()">Toggle Theme</button>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
@@ -87,13 +95,32 @@
       document.getElementById("form").addEventListener("submit", function (e) {
         e.preventDefault();
         const input = document.getElementById("input");
-        if (input.value.startsWith("/")) {
-          // Send admin command
-          socket.emit("chat message", {
-            room: currentRoom,
-            name: username,
-            text: input.value,
-          });
+        
+        // Handle file input
+        const fileInput = document.getElementById("fileInput");
+        if (fileInput.files.length > 0) {
+          const file = fileInput.files[0];
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("room", currentRoom);
+          formData.append("username", username);
+
+          // Send file to the server
+          fetch("/upload", {
+            method: "POST",
+            body: formData,
+          })
+            .then((response) => response.json())
+            .then((data) => {
+              if (data.success) {
+                console.log("File uploaded successfully");
+              } else {
+                console.error("File upload failed");
+              }
+            })
+            .catch((error) => console.error("Error:", error));
+          
+          fileInput.value = ""; // Clear file input after sending
         } else {
           // Send normal chat message
           socket.emit("chat message", {
@@ -102,12 +129,19 @@
             text: input.value,
           });
         }
-        input.value = "";
+        input.value = ""; // Clear input field
       });
 
       socket.on("chat message", function (msg) {
         const item = document.createElement("div");
         item.textContent = `${msg.name}: ${msg.text}`;
+        document.getElementById("messages").appendChild(item);
+        messages.scrollTop = messages.scrollHeight;
+      });
+
+      socket.on("file upload", function (data) {
+        const item = document.createElement("div");
+        item.innerHTML = `${data.name} sent a file: <a href="${data.filePath}" target="_blank">${data.fileName}</a>`;
         document.getElementById("messages").appendChild(item);
         messages.scrollTop = messages.scrollHeight;
       });
@@ -125,16 +159,6 @@
       socket.on("clearChat", () => {
         document.getElementById("messages").innerHTML = ""; // Clear chat window
       });
-
-      // Room switching
-      document.querySelectorAll(".room").forEach((room) => {
-        room.addEventListener("click", () => {
-          currentRoom = room.getAttribute("data-room");
-          socket.emit("switch room", currentRoom);
-        });
-      });
-
-      socket.emit("join room", currentRoom);
 
       // Admin Code Submission
       function submitAdminCode() {
@@ -170,6 +194,24 @@
       if (localStorage.getItem("bannerClosed") === "true") {
         document.getElementById("banner").style.display = "none";
       }
+
+      // Function to toggle between light and dark themes
+      function toggleTheme() {
+        const body = document.body;
+        body.classList.toggle('light-theme');  // Toggle the light-theme class
+
+        // Save the current theme to localStorage
+        const currentTheme = body.classList.contains('light-theme') ? 'light' : 'dark';
+        localStorage.setItem('theme', currentTheme);
+      }
+
+      // On page load, check for saved theme preference
+      window.onload = function() {
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'light') {
+          document.body.classList.add('light-theme');  // Apply light theme if saved
+        }
+      };
     </script>
   </body>
 </html>
