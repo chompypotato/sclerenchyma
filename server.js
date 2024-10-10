@@ -1,5 +1,4 @@
 require("dotenv").config(); // Load environment variables from .env
-
 const express = require("express");
 const http = require("http");
 const socketIO = require("socket.io");
@@ -21,7 +20,6 @@ const storage = multer.diskStorage({
     cb(null, file.originalname); // Keep the original file name
   },
 });
-
 const upload = multer({ storage }); // Create the multer instance
 
 // Middleware to serve static files and parse JSON request bodies
@@ -43,6 +41,10 @@ const chatRooms = {
 // Admin users (admin privilege management)
 const adminUsers = new Set(); // Dynamically add users who verify as admins
 
+// Spam prevention variables
+const spamLimitTime = 2000; // 2 seconds limit between messages
+const userLastMessageTime = {}; // Object to track the last message time for each user
+
 // Socket.IO connections and message handling
 io.on("connection", (socket) => {
   let currentRoom = "General"; // Default room
@@ -62,6 +64,19 @@ io.on("connection", (socket) => {
   // Handle incoming chat messages
   socket.on("chat message", (msg) => {
     if (!msg.room || !msg.name || !msg.text) return;
+
+    // Check the last message time for the user
+    const now = Date.now();
+    const lastMessageTime = userLastMessageTime[msg.name] || 0;
+
+    // If the user sends a message too soon, block it
+    if (now - lastMessageTime < spamLimitTime) {
+      socket.emit("spam warning", "You are sending messages too quickly. Please wait.");
+      return;
+    }
+
+    // Update the user's last message time
+    userLastMessageTime[msg.name] = now;
 
     // Use node-emoji to replace emoji codes with emojis
     const messageWithEmojis = emoji.emojify(msg.text); // Convert text with emoji codes
@@ -96,6 +111,11 @@ io.on("connection", (socket) => {
       socket.emit("message history", chatRooms[room]);
     }
   });
+
+  // Handle admin commands
+  socket.on("admin command", (msg) => {
+    handleAdminCommand(msg, socket);
+  });
 });
 
 // Function to handle admin commands
@@ -110,20 +130,19 @@ function handleAdminCommand(msg, socket) {
     return;
   }
 
-  const [command] = text.split("clear"); // Extract the command
-  switch (command) {
-    case "/":
-      chatRooms[room] = []; // Clear chat history for the room
-      io.to(room).emit("clearChat"); // Emit clearChat event to the room
-      break;
-
-    // Add more admin commands here if needed (e.g., /kick, /ban)
-    default:
-      socket.emit("chat message", {
-        name: "system",
-        text: `Unknown admin command: ${command}`,
-      });
-      break;
+  // Check for the /clear command
+  if (text.startsWith("/clear")) {
+    chatRooms[room] = []; 
+    io.to(room).emit("clearChat"); // Notify all clients in the room
+    socket.emit("chat message", {
+      name: "system",
+      text: `Chat history cleared for room: ${room}`,
+    });
+  } else {
+    socket.emit("chat message", {
+      name: "system",
+      text: `Unknown admin command: ${text}`,
+    });
   }
 }
 
